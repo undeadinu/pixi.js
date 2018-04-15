@@ -13,6 +13,7 @@ import * as filters from './filters';
 import * as interaction from './interaction';
 import * as loaders from './loaders';
 import * as mesh from './mesh';
+import * as line from './line';
 import * as particles from './particles';
 import * as prepare from './prepare';
 
@@ -28,6 +29,7 @@ export {
     interaction,
     loaders,
     mesh,
+    line,
     particles,
     prepare,
 };
