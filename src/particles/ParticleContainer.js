@@ -1,10 +1,12 @@
 import * as core from '../core';
+import { hex2rgb } from '../core/utils';
 
 /**
  * The ParticleContainer class is a really fast version of the Container built solely for speed,
- * so use when you need a lot of sprites or particles. The tradeoff of the ParticleContainer is that advanced
- * functionality will not work. ParticleContainer implements only the basic object transform (position, scale, rotation).
- * Any other functionality like tinting, masking, etc will not work on sprites in this batch.
+ * so use when you need a lot of sprites or particles. The tradeoff of the ParticleContainer is that most advanced
+ * functionality will not work. ParticleContainer implements the basic object transform (position, scale, rotation)
+ * and some advanced functionality like tint (as of v4.5.6).
+ * Other more advanced functionality like masking, children, filters, etc will not work on sprites in this batch.
  *
  * It's extremely easy to use :
  *
@@ -18,7 +20,7 @@ import * as core from '../core';
  * }
  * ```
  *
- * And here you have a hundred sprites that will be renderer at the speed of light.
+ * And here you have a hundred sprites that will be rendered at the speed of light.
  *
  * @class
  * @extends PIXI.Container
@@ -27,16 +29,20 @@ import * as core from '../core';
 export default class ParticleContainer extends core.Container
 {
     /**
-     * @param {number} [maxSize=15000] - The maximum number of particles that can be renderer by the container.
+     * @param {number} [maxSize=1500] - The maximum number of particles that can be rendered by the container.
+     *  Affects size of allocated buffers.
      * @param {object} [properties] - The properties of children that should be uploaded to the gpu and applied.
-     * @param {boolean} [properties.scale=false] - When true, scale be uploaded and applied.
+     * @param {boolean} [properties.vertices=false] - When true, vertices be uploaded and applied.
+     *                  if sprite's ` scale/anchor/trim/frame/orig` is dynamic, please set `true`.
      * @param {boolean} [properties.position=true] - When true, position be uploaded and applied.
      * @param {boolean} [properties.rotation=false] - When true, rotation be uploaded and applied.
      * @param {boolean} [properties.uvs=false] - When true, uvs be uploaded and applied.
-     * @param {boolean} [properties.alpha=false] - When true, alpha be uploaded and applied.
-     * @param {number} [batchSize=15000] - Number of particles per batch.
+     * @param {boolean} [properties.tint=false] - When true, alpha and tint be uploaded and applied.
+     * @param {number} [batchSize=16384] - Number of particles per batch. If less than maxSize, it uses maxSize instead.
+     * @param {boolean} [autoResize=false] If true, container allocates more batches in case
+     *  there are more than `maxSize` particles.
      */
-    constructor(maxSize = 1500, properties, batchSize = 16384)
+    constructor(maxSize = 1500, properties, batchSize = 16384, autoResize = false)
     {
         super();
 
@@ -82,10 +88,18 @@ export default class ParticleContainer extends core.Container
         this._glBuffers = {};
 
         /**
-         * @member {number}
+         * for every batch stores _updateID corresponding to the last change in that batch
+         * @member {number[]}
          * @private
          */
-        this._bufferToUpdate = 0;
+        this._bufferUpdateIDs = [];
+
+        /**
+         * when child inserted, removed or changes position this number goes up
+         * @member {number[]}
+         * @private
+         */
+        this._updateID = 0;
 
         /**
          * @member {boolean}
@@ -102,6 +116,13 @@ export default class ParticleContainer extends core.Container
          * @see PIXI.BLEND_MODES
          */
         this.blendMode = core.BLEND_MODES.NORMAL;
+
+        /**
+         * If true, container allocates more batches in case there are more than `maxSize` particles.
+         * @member {boolean}
+         * @default false
+         */
+        this.autoResize = autoResize;
 
         /**
          * Used for canvas renderering. If true then the elements will be positioned at the
@@ -121,6 +142,18 @@ export default class ParticleContainer extends core.Container
         this.baseTexture = null;
 
         this.setProperties(properties);
+
+        /**
+         * The tint applied to the container.
+         * This is a hex value. A value of 0xFFFFFF will remove any tint effect.
+         *
+         * @private
+         * @member {number}
+         * @default 0xFFFFFF
+         */
+        this._tint = 0;
+        this.tintRgb = new Float32Array(4);
+        this.tint = 0xFFFFFF;
     }
 
     /**
@@ -132,11 +165,13 @@ export default class ParticleContainer extends core.Container
     {
         if (properties)
         {
-            this._properties[0] = 'scale' in properties ? !!properties.scale : this._properties[0];
+            this._properties[0] = 'vertices' in properties || 'scale' in properties
+                ? !!properties.vertices || !!properties.scale : this._properties[0];
             this._properties[1] = 'position' in properties ? !!properties.position : this._properties[1];
             this._properties[2] = 'rotation' in properties ? !!properties.rotation : this._properties[2];
             this._properties[3] = 'uvs' in properties ? !!properties.uvs : this._properties[3];
-            this._properties[4] = 'alpha' in properties ? !!properties.alpha : this._properties[4];
+            this._properties[4] = 'tint' in properties || 'alpha' in properties
+                ? !!properties.tint || !!properties.alpha : this._properties[4];
         }
     }
 
@@ -150,6 +185,24 @@ export default class ParticleContainer extends core.Container
         // TODO don't need to!
         this.displayObjectUpdateTransform();
         //  PIXI.Container.prototype.updateTransform.call( this );
+    }
+
+    /**
+     * The tint applied to the container. This is a hex value.
+     * A value of 0xFFFFFF will remove any tint effect.
+     ** IMPORTANT: This is a webGL only feature and will be ignored by the canvas renderer.
+     * @member {number}
+     * @default 0xFFFFFF
+     */
+    get tint()
+    {
+        return this._tint;
+    }
+
+    set tint(value) // eslint-disable-line require-jsdoc
+    {
+        this._tint = value;
+        hex2rgb(value, this.tintRgb);
     }
 
     /**
@@ -188,10 +241,11 @@ export default class ParticleContainer extends core.Container
     {
         const bufferIndex = Math.floor(smallestChildIndex / this._batchSize);
 
-        if (bufferIndex < this._bufferToUpdate)
+        while (this._bufferUpdateIDs.length < bufferIndex)
         {
-            this._bufferToUpdate = bufferIndex;
+            this._bufferUpdateIDs.push(0);
         }
+        this._bufferUpdateIDs[bufferIndex] = ++this._updateID;
     }
 
     /**
@@ -217,12 +271,7 @@ export default class ParticleContainer extends core.Container
         let finalWidth = 0;
         let finalHeight = 0;
 
-        const compositeOperation = renderer.blendModes[this.blendMode];
-
-        if (compositeOperation !== context.globalCompositeOperation)
-        {
-            context.globalCompositeOperation = compositeOperation;
-        }
+        renderer.setBlendMode(this.blendMode);
 
         context.globalAlpha = this.worldAlpha;
 
@@ -313,10 +362,10 @@ export default class ParticleContainer extends core.Container
                 frame.y * resolution,
                 frame.width * resolution,
                 frame.height * resolution,
-                positionX * resolution,
-                positionY * resolution,
-                finalWidth * resolution,
-                finalHeight * resolution
+                positionX * renderer.resolution,
+                positionY * renderer.resolution,
+                finalWidth * renderer.resolution,
+                finalHeight * renderer.resolution
             );
         }
     }
@@ -347,5 +396,6 @@ export default class ParticleContainer extends core.Container
 
         this._properties = null;
         this._buffers = null;
+        this._bufferUpdateIDs = null;
     }
 }

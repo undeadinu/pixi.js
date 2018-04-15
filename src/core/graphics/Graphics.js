@@ -5,7 +5,7 @@ import GraphicsData from './GraphicsData';
 import Sprite from '../sprites/Sprite';
 import { Matrix, Point, Rectangle, RoundedRectangle, Ellipse, Polygon, Circle } from '../math';
 import { hex2rgb, rgb2hex } from '../utils';
-import { SHAPES, BLEND_MODES } from '../const';
+import { SHAPES, BLEND_MODES, PI_2 } from '../const';
 import Bounds from '../display/Bounds';
 import bezierCurveTo from './utils/bezierCurveTo';
 import CanvasRenderer from '../renderers/canvas/CanvasRenderer';
@@ -493,15 +493,15 @@ export default class Graphics extends Container
 
         if (!anticlockwise && endAngle <= startAngle)
         {
-            endAngle += Math.PI * 2;
+            endAngle += PI_2;
         }
         else if (anticlockwise && startAngle <= endAngle)
         {
-            startAngle += Math.PI * 2;
+            startAngle += PI_2;
         }
 
         const sweep = endAngle - startAngle;
-        const segs = Math.ceil(Math.abs(sweep) / (Math.PI * 2)) * 40;
+        const segs = Math.ceil(Math.abs(sweep) / PI_2) * 40;
 
         if (sweep === 0)
         {
@@ -663,7 +663,7 @@ export default class Graphics extends Container
     /**
      * Draws a polygon using the given path.
      *
-     * @param {number[]|PIXI.Point[]} path - The path data used to construct the polygon.
+     * @param {number[]|PIXI.Point[]|PIXI.Polygon} path - The path data used to construct the polygon.
      * @return {PIXI.Graphics} This Graphics object. Good for chaining method calls
      */
     drawPolygon(path)
@@ -699,6 +699,40 @@ export default class Graphics extends Container
         this.drawShape(shape);
 
         return this;
+    }
+
+    /**
+     * Draw a star shape with an abitrary number of points.
+     *
+     * @param {number} x - Center X position of the star
+     * @param {number} y - Center Y position of the star
+     * @param {number} points - The number of points of the star, must be > 1
+     * @param {number} radius - The outer radius of the star
+     * @param {number} [innerRadius] - The inner radius between points, default half `radius`
+     * @param {number} [rotation=0] - The rotation of the star in radians, where 0 is vertical
+     * @return {PIXI.Graphics} This Graphics object. Good for chaining method calls
+     */
+    drawStar(x, y, points, radius, innerRadius, rotation = 0)
+    {
+        innerRadius = innerRadius || radius / 2;
+
+        const startAngle = (-1 * Math.PI / 2) + rotation;
+        const len = points * 2;
+        const delta = PI_2 / len;
+        const polygon = [];
+
+        for (let i = 0; i < len; i++)
+        {
+            const r = i % 2 ? innerRadius : radius;
+            const angle = (i * delta) + startAngle;
+
+            polygon.push(
+                x + (r * Math.cos(angle)),
+                y + (r * Math.sin(angle))
+            );
+        }
+
+        return this.drawPolygon(polygon);
     }
 
     /**
@@ -806,8 +840,8 @@ export default class Graphics extends Container
         sprite.worldAlpha = this.worldAlpha * sprite.alpha;
         sprite.blendMode = this.blendMode;
 
-        sprite.texture._frame.width = rect.width;
-        sprite.texture._frame.height = rect.height;
+        sprite._texture._frame.width = rect.width;
+        sprite._texture._frame.height = rect.height;
 
         sprite.transform.worldTransform = this.transform.worldTransform;
 
@@ -879,6 +913,19 @@ export default class Graphics extends Container
             {
                 if (data.shape.contains(tempPoint.x, tempPoint.y))
                 {
+                    if (data.holes)
+                    {
+                        for (let i = 0; i < data.holes.length; i++)
+                        {
+                            const hole = data.holes[i];
+
+                            if (hole.contains(tempPoint.x, tempPoint.y))
+                            {
+                                return false;
+                            }
+                        }
+                    }
+
                     return true;
                 }
             }
@@ -1008,10 +1055,10 @@ export default class Graphics extends Container
         const padding = this.boundsPadding;
 
         this._localBounds.minX = minX - padding;
-        this._localBounds.maxX = maxX + (padding * 2);
+        this._localBounds.maxX = maxX + padding;
 
         this._localBounds.minY = minY - padding;
-        this._localBounds.maxY = maxY + (padding * 2);
+        this._localBounds.maxY = maxY + padding;
     }
 
     /**
@@ -1086,7 +1133,7 @@ export default class Graphics extends Container
 
         canvasRenderer.render(this, canvasBuffer, true, tempMatrix);
 
-        const texture = Texture.fromCanvas(canvasBuffer.baseTexture._canvasRenderTarget.canvas, scaleMode);
+        const texture = Texture.fromCanvas(canvasBuffer.baseTexture._canvasRenderTarget.canvas, scaleMode, 'graphics');
 
         texture.baseTexture.resolution = resolution;
         texture.baseTexture.update();

@@ -71,6 +71,25 @@ describe('PIXI.interaction.InteractionManager', function ()
             expect(eventSpy).to.have.been.called;
         });
 
+        it('should call mouseupoutside handler on mouseup on different elements', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const eventSpy = sinon.spy();
+            const pointer = this.pointer = new MockPointer(stage);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('mouseupoutside', eventSpy);
+
+            pointer.mousedown(10, 10);
+            pointer.mouseup(10, 10, false);
+
+            expect(eventSpy).to.have.been.called;
+        });
+
         it('should call mouseover handler', function ()
         {
             const stage = new PIXI.Container();
@@ -106,6 +125,95 @@ describe('PIXI.interaction.InteractionManager', function ()
             pointer.mousemove(60, 60);
 
             expect(eventSpy).to.have.been.called;
+        });
+    });
+
+    describe('touch vs pointer', function ()
+    {
+        it('should call touchstart and pointerdown when touch event and pointer supported', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const touchSpy = sinon.spy(function touchListen() { /* noop */ });
+            const pointerSpy = sinon.spy(function pointerListen() { /* noop */ });
+            const pointer = this.pointer = new MockPointer(stage, null, null, true);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('touchstart', touchSpy);
+            graphics.on('pointerdown', pointerSpy);
+
+            pointer.touchstart(10, 10);
+
+            expect(touchSpy).to.have.been.calledOnce;
+            expect(pointerSpy).to.have.been.calledOnce;
+        });
+
+        it('should not call touchstart or pointerdown when pointer event and touch supported', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const touchSpy = sinon.spy(function touchListen() { /* noop */ });
+            const pointerSpy = sinon.spy(function pointerListen() { /* noop */ });
+            const pointer = this.pointer = new MockPointer(stage, null, null, true);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('touchstart', touchSpy);
+            graphics.on('pointerdown', pointerSpy);
+
+            pointer.touchstart(10, 10, 0, true);
+
+            expect(touchSpy).to.not.have.been.called;
+            expect(pointerSpy).to.not.have.been.called;
+        });
+
+        it('should call touchstart and pointerdown when touch event and pointer not supported', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const touchSpy = sinon.spy(function touchListen() { /* noop */ });
+            const pointerSpy = sinon.spy(function pointerListen() { /* noop */ });
+            const pointer = this.pointer = new MockPointer(stage, null, null, false);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('touchstart', touchSpy);
+            graphics.on('pointerdown', pointerSpy);
+
+            pointer.touchstart(10, 10);
+
+            expect(touchSpy).to.have.been.calledOnce;
+            expect(pointerSpy).to.have.been.calledOnce;
+        });
+
+        it('should call touchstart and pointerdown when pointer event and touch not supported', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const touchSpy = sinon.spy(function touchListen() { /* noop */ });
+            const pointerSpy = sinon.spy(function pointerListen() { /* noop */ });
+            const pointer = this.pointer = new MockPointer(stage, null, null, true);
+
+            pointer.interaction.supportsTouchEvents = false;
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('touchstart', touchSpy);
+            graphics.on('pointerdown', pointerSpy);
+
+            pointer.touchstart(10, 10, 0, true);
+
+            expect(touchSpy).to.have.been.calledOnce;
+            expect(pointerSpy).to.have.been.calledOnce;
         });
     });
 
@@ -171,13 +279,48 @@ describe('PIXI.interaction.InteractionManager', function ()
             removeSpy.restore();
         });
 
-        it('should add and remove pointer events to element', function ()
+        it('should add and remove pointer events to element seven times when touch events are supported', function ()
         {
             const manager = new PIXI.interaction.InteractionManager(sinon.stub());
             const element = { style: {}, addEventListener: sinon.stub(), removeEventListener: sinon.stub() };
 
             manager.interactionDOMElement = element;
             manager.supportsPointerEvents = true;
+            manager.supportsTouchEvents = true;
+
+            manager.addEvents();
+
+            expect(element.addEventListener).to.have.been.callCount(7);
+            expect(element.addEventListener).to.have.been.calledWith('pointerdown');
+            expect(element.addEventListener).to.have.been.calledWith('pointerleave');
+            expect(element.addEventListener).to.have.been.calledWith('pointerover');
+
+            expect(element.addEventListener).to.have.been.calledWith('touchstart');
+            expect(element.addEventListener).to.have.been.calledWith('touchcancel');
+            expect(element.addEventListener).to.have.been.calledWith('touchend');
+            expect(element.addEventListener).to.have.been.calledWith('touchmove');
+
+            manager.removeEvents();
+
+            expect(element.removeEventListener).to.have.been.callCount(7);
+            expect(element.removeEventListener).to.have.been.calledWith('pointerdown');
+            expect(element.removeEventListener).to.have.been.calledWith('pointerleave');
+            expect(element.removeEventListener).to.have.been.calledWith('pointerover');
+
+            expect(element.removeEventListener).to.have.been.calledWith('touchstart');
+            expect(element.removeEventListener).to.have.been.calledWith('touchcancel');
+            expect(element.removeEventListener).to.have.been.calledWith('touchend');
+            expect(element.removeEventListener).to.have.been.calledWith('touchmove');
+        });
+
+        it('should add and remove pointer events to element three times when touch events are not supported', function ()
+        {
+            const manager = new PIXI.interaction.InteractionManager(sinon.stub());
+            const element = { style: {}, addEventListener: sinon.stub(), removeEventListener: sinon.stub() };
+
+            manager.interactionDOMElement = element;
+            manager.supportsPointerEvents = true;
+            manager.supportsTouchEvents = false;
 
             manager.addEvents();
 
@@ -264,13 +407,37 @@ describe('PIXI.interaction.InteractionManager', function ()
             expect(element.removeEventListener).to.have.been.calledWith('mouseover');
         });
 
-        it('should add and remove touch events to element', function ()
+        it('should add and remove touch events to element without pointer events', function ()
         {
             const manager = new PIXI.interaction.InteractionManager(sinon.stub());
             const element = { style: {}, addEventListener: sinon.stub(), removeEventListener: sinon.stub() };
 
             manager.interactionDOMElement = element;
             manager.supportsPointerEvents = false;
+            manager.supportsTouchEvents = true;
+
+            manager.addEvents();
+
+            expect(element.addEventListener).to.have.been.calledWith('touchstart');
+            expect(element.addEventListener).to.have.been.calledWith('touchcancel');
+            expect(element.addEventListener).to.have.been.calledWith('touchend');
+            expect(element.addEventListener).to.have.been.calledWith('touchmove');
+
+            manager.removeEvents();
+
+            expect(element.removeEventListener).to.have.been.calledWith('touchstart');
+            expect(element.removeEventListener).to.have.been.calledWith('touchcancel');
+            expect(element.removeEventListener).to.have.been.calledWith('touchend');
+            expect(element.removeEventListener).to.have.been.calledWith('touchmove');
+        });
+
+        it('should add and remove touch events to element with pointer events', function ()
+        {
+            const manager = new PIXI.interaction.InteractionManager(sinon.stub());
+            const element = { style: {}, addEventListener: sinon.stub(), removeEventListener: sinon.stub() };
+
+            manager.interactionDOMElement = element;
+            manager.supportsPointerEvents = true;
             manager.supportsTouchEvents = true;
 
             manager.addEvents();
@@ -882,6 +1049,284 @@ describe('PIXI.interaction.InteractionManager', function ()
                 });
             });
         });
+
+        it('Semi-complicated nesting with overlap, should not call behind callback', function ()
+        {
+            const stage = new PIXI.Container();
+            const frontParent = new PIXI.Container();
+            const frontChild = new PIXI.Graphics();
+            const behindParent = new PIXI.Container();
+            const subParent = new PIXI.Container();
+            const behindChild = new PIXI.Graphics();
+            const behindCallback = sinon.spy(function behindSpy() { /* no op*/ });
+            const frontCallback = sinon.spy(function frontSpy() { /* no op*/ });
+
+            behindChild.beginFill(0xFF);
+            behindChild.drawRect(0, 0, 50, 50);
+            subParent.on('click', behindCallback);
+
+            frontChild.beginFill(0x00FF);
+            frontChild.drawRect(0, 0, 50, 50);
+            frontParent.on('click', frontCallback);
+            const pointer = this.pointer = new MockPointer(stage);
+
+            behindParent.x = 25;
+            subParent.interactive = true;
+            frontParent.interactive = true;
+
+            behindParent.addChild(subParent);
+            subParent.addChild(behindChild);
+            stage.addChild(behindParent);
+            frontParent.addChild(frontChild);
+            stage.addChild(frontParent);
+
+            pointer.click(40, 10);
+
+            expect(behindCallback).to.not.have.been.called;
+            expect(frontCallback).to.have.been.calledOnce;
+        });
+    });
+
+    describe('masks', function ()
+    {
+        it('should trigger interaction callback when no mask present', function ()
+        {
+            const stage = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const mask = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(graphics);
+            mask.beginFill();
+            mask.drawRect(0, 0, 50, 50);
+            graphics.mask = mask;
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.been.calledOnce;
+        });
+
+        it('should trigger interaction callback when mask uses beginFill', function ()
+        {
+            const stage = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const mask = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(graphics);
+            mask.beginFill();
+            mask.drawRect(0, 0, 50, 50);
+            graphics.mask = mask;
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.been.calledOnce;
+        });
+
+        it('should trigger interaction callback on child when inside of parents mask', function ()
+        {
+            const stage = new PIXI.Container();
+            const parent = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const mask = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(parent);
+            parent.addChild(graphics);
+            mask.beginFill();
+            mask.drawRect(0, 0, 25, 25);
+            parent.mask = mask;
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.been.calledOnce;
+        });
+
+        it('should not trigger interaction callback on child when outside of parents mask', function ()
+        {
+            const stage = new PIXI.Container();
+            const parent = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const mask = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(parent);
+            parent.addChild(graphics);
+            mask.beginFill();
+            mask.drawRect(0, 0, 25, 25);
+            parent.mask = mask;
+
+            pointer.click(30, 30);
+
+            expect(spy).to.have.not.been.calledOnce;
+        });
+
+        it('should not trigger interaction callback when mask doesn\'t use beginFill', function ()
+        {
+            const stage = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const mask = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(graphics);
+            mask.drawRect(0, 0, 50, 50);
+            graphics.mask = mask;
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.not.been.called;
+        });
+
+        it('should trigger interaction callback when mask doesn\'t use beginFill but hitArea is defined', function ()
+        {
+            const stage = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const mask = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.hitArea = new PIXI.Rectangle(0, 0, 50, 50);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(graphics);
+            mask.drawRect(0, 0, 50, 50);
+            graphics.mask = mask;
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.been.calledOnce;
+        });
+
+        it('should trigger interaction callback when mask is a sprite', function ()
+        {
+            const stage = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const mask = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(graphics);
+            mask.drawRect(0, 0, 50, 50);
+            graphics.mask = new PIXI.Sprite(mask.generateCanvasTexture());
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.been.calledOnce;
+        });
+    });
+
+    describe('hitArea', function ()
+    {
+        it('should trigger interaction callback when within hitArea', function ()
+        {
+            const stage = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(graphics);
+            graphics.hitArea = new PIXI.Rectangle(0, 0, 25, 25);
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.been.calledOnce;
+        });
+
+        it('should not trigger interaction callback when not within hitArea', function ()
+        {
+            const stage = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(graphics);
+            graphics.hitArea = new PIXI.Rectangle(0, 0, 25, 25);
+
+            pointer.click(30, 30);
+
+            expect(spy).to.have.not.been.calledOnce;
+        });
+
+        it('should trigger interaction callback on child when inside of parents hitArea', function ()
+        {
+            const stage = new PIXI.Container();
+            const parent = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(parent);
+            parent.addChild(graphics);
+            parent.hitArea = new PIXI.Rectangle(0, 0, 25, 25);
+
+            pointer.click(10, 10);
+
+            expect(spy).to.have.been.calledOnce;
+        });
+
+        it('should not trigger interaction callback on child when outside of parents hitArea', function ()
+        {
+            const stage = new PIXI.Container();
+            const parent = new PIXI.Container();
+            const pointer = new MockPointer(stage);
+            const graphics = new PIXI.Graphics();
+            const spy = sinon.spy();
+
+            graphics.interactive = true;
+            graphics.beginFill(0xFF0000);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.on('click', spy);
+            stage.addChild(parent);
+            parent.addChild(graphics);
+            parent.hitArea = new PIXI.Rectangle(0, 0, 25, 25);
+
+            pointer.click(30, 30);
+
+            expect(spy).to.have.not.been.calledOnce;
+        });
     });
 
     describe('cursor changes', function ()
@@ -1026,7 +1471,7 @@ describe('PIXI.interaction.InteractionManager', function ()
             expect(pointer.renderer.view.style.display).to.equal('none');
         });
 
-        it('should not change cursor style if no cursor style provided', function ()
+        it('should not change cursor style if null cursor style provided', function ()
         {
             const stage = new PIXI.Container();
             const graphics = new PIXI.Graphics();
@@ -1045,6 +1490,22 @@ describe('PIXI.interaction.InteractionManager', function ()
 
             pointer.mousemove(60, 60);
             expect(pointer.renderer.view.style.cursor).to.equal('');
+        });
+
+        it('should use cursor property as css if no style entry', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const pointer = this.pointer = new MockPointer(stage);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.cursor = 'text';
+
+            pointer.mousemove(10, 10);
+            expect(pointer.renderer.view.style.cursor).to.equal('text');
         });
     });
 
@@ -1160,6 +1621,174 @@ describe('PIXI.interaction.InteractionManager', function ()
             expect(pointer.interaction.activeInteractionData[42]).to.be.undefined;
             pointer.touchleave(10, 10, 42);
             expect(pointer.interaction.activeInteractionData[42]).to.be.undefined;
+        });
+    });
+
+    describe('hitTest()', function ()
+    {
+        it('should return hit', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const pointer = this.pointer = new MockPointer(stage);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+
+            pointer.render();
+            const hit = pointer.interaction.hitTest(new PIXI.Point(10, 10));
+
+            expect(hit).to.equal(graphics);
+        });
+
+        it('should return null if not hit', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const pointer = this.pointer = new MockPointer(stage);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+
+            pointer.render();
+            const hit = pointer.interaction.hitTest(new PIXI.Point(60, 60));
+
+            expect(hit).to.be.null;
+        });
+
+        it('should return top thing that was hit', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const behind = new PIXI.Graphics();
+            const pointer = this.pointer = new MockPointer(stage);
+
+            stage.addChild(behind);
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            behind.beginFill(0xFFFFFF);
+            behind.drawRect(0, 0, 50, 50);
+            behind.interactive = true;
+
+            pointer.render();
+            const hit = pointer.interaction.hitTest(new PIXI.Point(10, 10));
+
+            expect(hit).to.equal(graphics);
+        });
+
+        it('should return hit when passing in root', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const behind = new PIXI.Graphics();
+            const pointer = this.pointer = new MockPointer(stage);
+
+            stage.addChild(behind);
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            behind.beginFill(0xFFFFFF);
+            behind.drawRect(0, 0, 50, 50);
+            behind.interactive = true;
+
+            pointer.render();
+            const hit = pointer.interaction.hitTest(new PIXI.Point(10, 10), behind);
+
+            expect(hit).to.equal(behind);
+        });
+    });
+
+    describe('InteractionData properties', function ()
+    {
+        it('isPrimary should be set for first touch only', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const pointer = this.pointer = new MockPointer(stage);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+
+            pointer.touchstart(10, 10, 1);
+            expect(pointer.interaction.activeInteractionData[1]).to.exist;
+            expect(pointer.interaction.activeInteractionData[1].isPrimary,
+                    'first touch should be primary on touch start').to.be.true;
+            pointer.touchstart(13, 9, 2);
+            expect(pointer.interaction.activeInteractionData[2].isPrimary,
+                    'second touch should not be primary').to.be.false;
+            pointer.touchmove(10, 20, 1);
+            expect(pointer.interaction.activeInteractionData[1].isPrimary,
+                    'first touch should still be primary after move').to.be.true;
+            pointer.touchend(10, 10, 1);
+            pointer.touchmove(13, 29, 2);
+            expect(pointer.interaction.activeInteractionData[2].isPrimary,
+                    'second touch should still not be primary after first is done').to.be.false;
+        });
+    });
+
+    describe('mouse events from pens', function ()
+    {
+        it('should call mousedown handler', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const eventSpy = sinon.spy();
+            const pointer = this.pointer = new MockPointer(stage, null, null, true);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('mousedown', eventSpy);
+
+            pointer.pendown(10, 10);
+
+            expect(eventSpy).to.have.been.calledOnce;
+        });
+
+        it('should call mousemove handler', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const eventSpy = sinon.spy();
+            const pointer = this.pointer = new MockPointer(stage, null, null, true);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('mousemove', eventSpy);
+
+            pointer.penmove(10, 10);
+
+            expect(eventSpy).to.have.been.calledOnce;
+        });
+
+        it('should call mouseup handler', function ()
+        {
+            const stage = new PIXI.Container();
+            const graphics = new PIXI.Graphics();
+            const eventSpy = sinon.spy();
+            const pointer = this.pointer = new MockPointer(stage, null, null, true);
+
+            stage.addChild(graphics);
+            graphics.beginFill(0xFFFFFF);
+            graphics.drawRect(0, 0, 50, 50);
+            graphics.interactive = true;
+            graphics.on('mouseup', eventSpy);
+
+            pointer.penup(10, 10);
+
+            expect(eventSpy).to.have.been.calledOnce;
         });
     });
 });

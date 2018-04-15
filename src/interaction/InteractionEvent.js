@@ -33,14 +33,14 @@ export default class InteractionEvent
          */
         this.currentTarget = null;
 
-        /*
+        /**
          * Type of the event
          *
          * @member {string}
          */
         this.type = null;
 
-        /*
+        /**
          * InteractionData related to this event
          *
          * @member {PIXI.interaction.InteractionData}
@@ -59,10 +59,8 @@ export default class InteractionEvent
 
     /**
      * Resets the event.
-     *
-     * @private
      */
-    _reset()
+    reset()
     {
         this.stopped = false;
         this.currentTarget = null;
