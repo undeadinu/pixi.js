@@ -173,13 +173,13 @@ function buildLine(graphicsData, webGLData)
             verts.push(
                 p2x - (perpx * r1),
                 p2y - (perpy * r1),
-                r, g, b, alpha * Math.random()
+                r, g, b, alpha
             );
 
             verts.push(
                 p2x + (perpx * r2),
                 p2y + (perpy * r2),
-                r, g, b, alpha * Math.random()
+                r, g, b, alpha
             );
 
             continue;

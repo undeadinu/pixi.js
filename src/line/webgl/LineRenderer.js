@@ -99,6 +99,7 @@ export default class LineRenderer extends core.ObjectRenderer
             glData.indexBuffer.upload(mesh.indices);
         }
 
+
         renderer.bindShader(glData.shader);
 
         // renderer.state.setBlendMode(core.utils.correctBlendMode(mesh.blendMode, texture.baseTexture.premultipliedAlpha));
@@ -114,6 +115,7 @@ export default class LineRenderer extends core.ObjectRenderer
                 glData.shader.uniforms.uTransform = matrixIdentity.toArray(true);
             }
         }
+
         glData.shader.uniforms.translationMatrix = mesh.worldTransform.toArray(true);
         glData.shader.uniforms.thickness = mesh.thickness;
         glData.shader.uniforms.uOffset = mesh.offset;
@@ -123,7 +125,7 @@ export default class LineRenderer extends core.ObjectRenderer
         glData.shader.uniforms.uColor = core.utils.premultiplyRgba(mesh.colorRgb,
             mesh.worldAlpha, glData.shader.uniforms.uColor, 1);
 
-        const drawMode = mesh.drawMode === Mesh.DRAW_MODES.TRIANGLE_MESH ? gl.TRIANGLE_STRIP : gl.TRIANGLES;
+        const drawMode = gl.TRIANGLES;
 
         glData.vao.draw(gl.TRIANGLES, mesh.count, 0);
     }
