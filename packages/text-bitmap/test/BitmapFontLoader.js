@@ -337,6 +337,8 @@ describe('PIXI.BitmapFontLoader', function ()
         loader.add(`${__dirname}/resources/split_font.fnt`);
         loader.load(() =>
         {
+            Loader._plugins.splice(Loader._plugins.indexOf(BitmapFontLoader), 1);
+
             const font = BitmapText.fonts.split_font;
 
             expect(font).to.be.an.object;
